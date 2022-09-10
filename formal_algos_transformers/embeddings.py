@@ -35,6 +35,10 @@ class ContentEmbeddings(nn.Module):
         """
         return self.embedding(input_ids)
 
+    def extra_repr(self):
+        return "n_v={}, d_e={}, padding_idx={}".format(
+            self.n_v, self.d_e, self.padding_idx)
+
 
 class PositionEmbeddings(nn.Module):
 
@@ -60,6 +64,9 @@ class PositionEmbeddings(nn.Module):
         """
         _, ll = input_ids.shape
         return self.embedding(torch.arange(ll)[None,:])
+
+    def extra_repr(self):
+        return "l_max={}, d_e={}".format(self.l_max, self.d_e)
 
 
 class PositionEncodings(nn.Module):
@@ -94,3 +101,6 @@ class PositionEncodings(nn.Module):
         """
         _, ll = input_ids.shape
         return self.pos_enc[:, :ll]
+
+    def extra_repr(self):
+        return "l_max={}, d_e={}".format(self.l_max, self.d_e)
