@@ -8,8 +8,6 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
-from formal_algos_transformers.fat_multi_head_attention import MultiHeadAttention
-
 
 class ContentEmbeddings(nn.Module):
 
@@ -52,7 +50,7 @@ class PositionEmbeddings(nn.Module):
         self.d_e = d_e
         self.embedding = torch.nn.Embedding(l_max, d_e)
 
-    def forward(self, input_ids):
+    def forward(self, input_ids: Tensor):
         """
         Args:
             input_ids (tensor): [b, s] vocabulary input ids
@@ -86,7 +84,7 @@ class PositionEncodings(nn.Module):
         encodings = encodings[None, :, :]  # [1, l_max, d_e]
         self.register_buffer("pos_enc", encodings)
 
-    def forward(self, input_ids):
+    def forward(self, input_ids: Tensor):
         """
         Args:
             input_ids (tensor): [b, s] vocabulary input ids

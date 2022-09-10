@@ -3,13 +3,10 @@ from types import SimpleNamespace
 import unittest
 
 import torch
-from torch import Tensor
-from torch.nn.utils.stateless import functional_call
 
 from formal_algos_transformers.embeddings import ContentEmbeddings
 from formal_algos_transformers.embeddings import PositionEmbeddings
 from formal_algos_transformers.embeddings import PositionEncodings
-from .utils import allclose
 
 
 class TestEmbeddings(unittest.TestCase):
