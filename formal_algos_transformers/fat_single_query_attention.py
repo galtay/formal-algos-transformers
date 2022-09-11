@@ -89,7 +89,7 @@ class SingleQueryAttention(nn.Module):
             zs_mask (tensor): [l_z] context attention mask
 
         Output:
-            q (tensor): [1, d_attn] query vector for x
+            q (tensor): [d_attn] query vector for x
             k (tensor): [l_z, d_attn] key vectors for zs
             v (tensor): [l_z, d_out] value vectors for zs
             score (tensor): [l_z] (q k^T) / sqrt(d_attn)
