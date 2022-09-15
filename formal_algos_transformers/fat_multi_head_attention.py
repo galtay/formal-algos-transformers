@@ -129,9 +129,9 @@ class MultiHeadAttention(nn.Module):
         # batch matrix multiplication for each batch and head
         einsum_str = "b i k, h k j -> b h i j"
         if self.bias:
-            q = torch.einsum(einsum_str, x, self.w_q) + self.b_q[:, None, :]
-            k = torch.einsum(einsum_str, z, self.w_k) + self.b_k[:, None, :]
-            v = torch.einsum(einsum_str, z, self.w_v) + self.b_v[:, None, :]
+            q = torch.einsum(einsum_str, x, self.w_q) + self.b_q[None, :, None, :]
+            k = torch.einsum(einsum_str, z, self.w_k) + self.b_k[None, :, None, :]
+            v = torch.einsum(einsum_str, z, self.w_v) + self.b_v[None, :, None, :]
         else:
             q = torch.einsum(einsum_str, x, self.w_q)
             k = torch.einsum(einsum_str, z, self.w_k)
