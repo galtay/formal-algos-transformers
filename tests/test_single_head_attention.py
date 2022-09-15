@@ -68,8 +68,8 @@ class TestSingleHeadAttention(unittest.TestCase):
                     single_query_attention = SingleQueryAttention(
                         d_x = self.config.d_x,
                         d_z = self.config.d_z,
-                        d_out = self.config.d_out,
                         d_attn = self.config.d_attn,
+                        d_out = self.config.d_out,
                         bias = bias,
                     )
 
@@ -77,8 +77,8 @@ class TestSingleHeadAttention(unittest.TestCase):
                     attention = SingleHeadAttention(
                         d_x = self.config.d_x,
                         d_z = self.config.d_z,
-                        d_out = self.config.d_out,
                         d_attn = self.config.d_attn,
+                        d_out = self.config.d_out,
                         bias = bias,
                     )
 
@@ -98,11 +98,11 @@ class TestSingleHeadAttention(unittest.TestCase):
                             # get single query attention results
 
                             x1 = x[batch, tok, :]
-                            zs = z[batch, :, :]
+                            zb = z[batch, :, :]
                             expected_output = functional_call(
                                 single_query_attention,
                                 params_and_buffers,
-                                (x1, zs, x_mask[batch, tok], z_mask[batch, :]),
+                                (x1, zb, x_mask[batch, tok], z_mask[batch, :]),
                             )
 
                             self.assertTrue(allclose(
@@ -113,7 +113,7 @@ class TestSingleHeadAttention(unittest.TestCase):
                                 expected_output["v"],
                                 actual_output["v"][batch, :, :]))
 
-                            for check_key in ["q", "score", "mask", "bmask", "masked_score", "attention", "vt"]:
+                            for check_key in ["q", "score", "mask", "attention", "vtilde"]:
 
                                 self.assertTrue(allclose(
                                     expected_output[check_key],

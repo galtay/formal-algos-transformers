@@ -72,8 +72,8 @@ class TestMultiHeadAttention(unittest.TestCase):
                     single_query_attention = SingleQueryAttention(
                         d_x = self.config.d_x,
                         d_z = self.config.d_z,
-                        d_out = self.config.d_mid,
                         d_attn = self.config.d_attn,
+                        d_out = self.config.d_mid,
                         bias = bias,
                     )
 
@@ -81,10 +81,10 @@ class TestMultiHeadAttention(unittest.TestCase):
                     multi_head_attention = MultiHeadAttention(
                         d_x = self.config.d_x,
                         d_z = self.config.d_z,
-                        d_out = self.config.d_out,
                         d_attn = self.config.d_attn,
                         d_mid = self.config.d_mid,
                         n_h = self.config.n_h,
+                        d_out = self.config.d_out,
                         bias = bias,
                     )
 
@@ -103,7 +103,7 @@ class TestMultiHeadAttention(unittest.TestCase):
                             for tok in range(self.config.l_x):
 
                                 x1 = x[batch, tok, :]
-                                zs = z[batch, :, :]
+                                zb = z[batch, :, :]
 
                                 params_and_buffers = {
                                     "w_q": w_q[head, :, :],
@@ -119,7 +119,7 @@ class TestMultiHeadAttention(unittest.TestCase):
                                     params_and_buffers,
                                     (
                                         x1,
-                                        zs,
+                                        zb,
                                         x_mask[batch, tok],
                                         z_mask[batch, :],
                                     ),
@@ -133,7 +133,7 @@ class TestMultiHeadAttention(unittest.TestCase):
                                     expected_output["v"],
                                     actual_output["v"][batch, head, :, :]))
 
-                                for check_key in ["q", "score", "masked_score", "attention"]:
+                                for check_key in ["q", "score", "attention"]:
                                     print(check_key)
                                     self.assertTrue(allclose(
                                         expected_output[check_key],
@@ -142,5 +142,5 @@ class TestMultiHeadAttention(unittest.TestCase):
                                 # note that the final output of single query
                                 # is equal to the specific head result
                                 self.assertTrue(allclose(
-                                    expected_output["vt"],
+                                    expected_output["vtilde"],
                                     actual_output["yh"][batch, head, tok, :]))
