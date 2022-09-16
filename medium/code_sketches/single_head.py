@@ -40,5 +40,5 @@ class SingleHeadAttention(nn.Module):
         attention = torch.softmax(score, dim=-1) * mask
         assert mask.shape == score.shape == attention.shape == (b, l_x, l_z)
 
-        vtilde = attention @ v
+        vtilde = torch.matmul(attention, v)
         assert vtilde.shape == (b, l_x, self.d_out)

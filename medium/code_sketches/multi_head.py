@@ -20,9 +20,9 @@ class MultiHeadAttention(nn.Module):
         assert z_mask.shape == (b, l_z)
 
         einsum_str = "b i k, h k j -> b h i j"
-        q = torch.einsum(einsum_str, x, self.w_q) + self.b_q[:, None, :]
-        k = torch.einsum(einsum_str, z, self.w_k) + self.b_k[:, None, :]
-        v = torch.einsum(einsum_str, z, self.w_v) + self.b_v[:, None, :]
+        q = torch.einsum(einsum_str, x, self.w_q) + self.b_q[None, :, None, :]
+        k = torch.einsum(einsum_str, z, self.w_k) + self.b_k[None, :, None, :]
+        v = torch.einsum(einsum_str, z, self.w_v) + self.b_v[None, :, None, :]
 
         assert q.shape == (b, self.n_h, l_x, self.d_attn)
         assert k.shape == (b, self.n_h, l_z, self.d_attn)
@@ -44,7 +44,7 @@ class MultiHeadAttention(nn.Module):
         attention = torch.softmax(score, dim=-1) * emask
         assert score.shape == attention.shape == (b, self.n_h, l_x, l_z)
 
-        yh = attention @ v
+        yh = torch.matmul(attention, v)
         assert yh.shape == (b, self.n_h, l_x, self.d_mid)
 
         y = einops.rearrange(yh, "b h l d -> b l (h d)")
