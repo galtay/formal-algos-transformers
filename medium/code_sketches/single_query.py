@@ -9,24 +9,27 @@ class SingleQueryAttention(nn.Module):
         self.b_k = nn.Parameter(torch.empty(d_attn))
         self.b_v = nn.Parameter(torch.empty(d_out))
 
-    def forward(self, x1: Tensor, z: Tensor):
+    def forward(self, x: Tensor, z: List[Tensor]):
 
-        (d_x,) = x.shape
-        (l_z, d_z) = zs.shape
+        assert x.shape == (self.d_x,)
+        l_z = len(z)
+        assert all([zt.shape == (self.d_z,) for zt in z])
 
-        q = x1 @ self.w_q + self.b_q
-        k = z @ self.w_k + self.b_k
-        v = z @ self.w_v + self.b_v
+        q = torch.matmul(x, self.w_q) + self.b_q
+        k = [torch.matmul(zt, self.w_k) + self.b_k for zt in z]
+        v = [torch.matmul(zt, self.w_v) + self.b_v for zt in z]
 
         assert q.shape == (self.d_attn,)
-        assert k.shape == (l_z, self.d_attn)
-        assert v.shape == (l_z, self.d_out)
+        assert all([kt.shape == (self.d_attn,) for kt in k])
+        assert all([vt.shape == (self.d_out,) for vt in v])
 
-        score = q @ k.T / math.sqrt(self.d_attn)
+        score = torch.tensor([
+            torch.dot(q, kt) / math.sqrt(self.d_attn)
+            for kt in k
+        ])
         attention = torch.softmax(score, dim=-1)
-
         assert score.shape == attention.shape == (l_z,)
 
         vtilde = torch.zeros(self.d_out)
-        for tok in range(l_z):
-            vtilde += attention[tok] * v[tok, :]
+        for t in range(l_z):
+            vtilde += attention[t] * v[t]
