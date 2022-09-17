@@ -9,13 +9,12 @@ class SingleHeadAttention(nn.Module):
         self.b_k = nn.Parameter(torch.empty(d_attn))
         self.b_v = nn.Parameter(torch.empty(d_out))
 
-    def forward(self, x: Tensor, z: Tensor, x_mask: Tensor, z_mask: Tensor):
+    def forward(self, x: Tensor, z: Tensor, mask: Tensor):
 
         b_x, l_x, d_x = x.shape
         b_z, l_z, d_z = z.shape
         assert b_x == b_z; b = b_x
-        assert x_mask.shape == (b, l_x)
-        assert z_mask.shape == (b, l_z)
+        assert mask.shape == (b, l_x, l_z)
 
         einsum_str = "b i k, k j -> b i j"
         q = torch.einsum(einsum_str, x, self.w_q) + self.b_q
@@ -26,11 +25,7 @@ class SingleHeadAttention(nn.Module):
         assert k.shape == (b, l_z, self.d_attn)
         assert v.shape == (b, l_z, self.d_out)
 
-        # combine and expand x_mask [b, l_x] and z_mask [b, l_z]
-        # [b, l_x, 1] @ [b, 1, l_z] = [b, l_x, l_z]
-        mask = x_mask[:, :, None] @ z_mask[:, None, :]
         bmask = mask.to(torch.bool)
-
         einsum_str = "b i k, b j k -> b i j"
         score = torch.einsum(einsum_str, q, k) / math.sqrt(self.d_attn)
         score = score.masked_fill(~bmask, torch.finfo(score.dtype).min)

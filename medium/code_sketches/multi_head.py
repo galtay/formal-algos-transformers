@@ -11,13 +11,12 @@ class MultiHeadAttention(nn.Module):
         self.b_v = nn.Parameter(torch.empty(n_h, d_mid))
         self.b_o = nn.Parameter(torch.empty(d_out))
 
-    def forward(self, x: Tensor, z: Tensor, x_mask: Tensor, z_mask: Tensor):
+    def forward(self, x: Tensor, z: Tensor, mask: Tensor):
 
         b_x, l_x, d_x = x.shape
         b_z, l_z, d_z = z.shape
         assert b_x == b_z; b = b_x
-        assert x_mask.shape == (b, l_x)
-        assert z_mask.shape == (b, l_z)
+        assert mask.shape == (b, l_x, l_z)
 
         einsum_str = "b i k, h k j -> b h i j"
         q = torch.einsum(einsum_str, x, self.w_q) + self.b_q[None, :, None, :]
@@ -27,11 +26,6 @@ class MultiHeadAttention(nn.Module):
         assert q.shape == (b, self.n_h, l_x, self.d_attn)
         assert k.shape == (b, self.n_h, l_z, self.d_attn)
         assert v.shape == (b, self.n_h, l_z, self.d_mid)
-
-        # combine and expand x_mask [b, l_x] and z_mask [b, l_z]
-        # [b, l_x, 1] @ [b, 1, l_z] = [b, l_x, l_z]
-        mask = x_mask[:, :, None] @ z_mask[:, None, :]
-        assert mask.shape == (b, l_x, l_z)
 
         # create [b, 1, l_x, l_z] which is broadcastable to [b, h, l_x, l_z]
         emask = mask[:, None, :, :]
