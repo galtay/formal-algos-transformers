@@ -27,17 +27,16 @@ class MultiHeadAttention(nn.Module):
     Input:
         x (tensor) [b, l_x, d_x]: token embeddings of primary sequence
         z (tensor) [b, l_z, d_z]: token embeddings of context sequence
-        x_mask (tensor) [b, l_x]: primary sequence attention mask (1=attend, 0=dont)
-        z_mask (tensor) [b, l_z]: context sequence attention mask (1=attend, 0=dont)
+        mask (tensor) [b, l_x, l_z]: attention mask (1=attend, 0=dont)
 
     Output:
         q (tensor) [b, n_h, l_x, d_attn]: query vectors for x
         k (tensor) [b, n_h, l_z, d_attn]: key vectors for z
         v (tensor) [b, n_h, l_z, d_mid]: value vectors for z
-        score (tensor) [b, n_h, l_x, l_z]: (q @ k^T) / sqrt(d_attn) for each batch and head
-            where mask = 1 else minimum value for score tensor dtype
-        mask (tensor) [b, l_x, l_z]: mask[i,x,z] = 0 if x_mask[i,x] = 0 or
-            z_mask[i,z] = 0 else 1
+
+        score (tensor) [b, n_h, l_x, l_z]: (q @ k^T) / sqrt(d_attn)
+            for each batch and head where mask = 1
+            else minimum value for score tensor dtype
         attention (tensor) [b, n_h, l_x, l_z]: attention weights
             explicitly set to 0 where mask = 0
         yh (tensor) [b, n_h, l_x, d_mid]: contextualized x from each head
@@ -111,8 +110,7 @@ class MultiHeadAttention(nn.Module):
         self,
         x: Tensor,
         z: Tensor,
-        x_mask: Tensor,
-        z_mask: Tensor,
+        mask: Tensor,
     ):
 
         b_x, l_x, d_x = x.shape
@@ -123,8 +121,7 @@ class MultiHeadAttention(nn.Module):
 
         assert d_x == self.d_x
         assert d_z == self.d_z
-        assert x_mask.shape == (b, l_x)
-        assert z_mask.shape == (b, l_z)
+        assert mask.shape == (b, l_x, l_z)
 
         # batch matrix multiplication for each batch and head
         einsum_str = "b i k, h k j -> b h i j"
@@ -145,17 +142,12 @@ class MultiHeadAttention(nn.Module):
         score = torch.einsum("b h i k, b h j k -> b h i j", q, k) * self.scale
         assert score.shape == (b, self.n_h, l_x, l_z)
 
-        # combine and expand x_mask [b, l_x] and z_mask [b, l_z]
-        # [b, l_x, 1] @ [b, 1, l_z] = [b, l_x, l_z]
-        mask = x_mask[:, :, None] @ z_mask[:, None, :]
-        assert mask.shape == (b, l_x, l_z)
-
         # create [b, 1, l_x, l_z] which is broadcastable to [b, h, l_x, l_z]
         emask = mask[:, None, :, :]
         bmask = emask.to(torch.bool)
         assert emask.shape == bmask.shape == (b, 1, l_x, l_z)
         score = score.masked_fill(~bmask, torch.finfo(score.dtype).min)
-        # multiplying by mask below is not required but ensures
+        # multiplying by emask below is not required but ensures
         # attention is 0 where mask is 0
         attention = torch.softmax(score, dim=-1) * emask
         assert attention.shape == (b, self.n_h, l_x, l_z)
@@ -180,7 +172,6 @@ class MultiHeadAttention(nn.Module):
             "k": k,
             "v": v,
             "score": score,
-            "mask": mask,
             "yh": yh,
             "y": y,
             "attention": attention,
@@ -207,14 +198,15 @@ if __name__ == "__main__":
 
     x = torch.rand(b, l_x, d_x)
     z = torch.rand(b, l_z, d_z)
-    x_mask = torch.tensor([
-        [1, 1, 1],
-        [1, 1, 1],
-    ])
-    z_mask = torch.tensor([
+    mask = torch.tensor([[
         [1, 1, 1, 1],
         [1, 1, 1, 1],
-    ])
+        [1, 1, 1, 1],
+    ],[
+        [1, 1, 1, 1],
+        [1, 1, 1, 1],
+        [1, 1, 1, 1],
+    ]])
 
     mha = MultiHeadAttention(d_x, d_z, d_attn, d_mid, n_h, d_out)
-    out = mha(x, z, x_mask, z_mask)
+    out = mha(x, z, mask)

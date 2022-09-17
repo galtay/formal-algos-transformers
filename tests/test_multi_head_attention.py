@@ -42,105 +42,103 @@ class TestMultiHeadAttention(unittest.TestCase):
         z = torch.randn(self.config.b, self.config.l_z, self.config.d_z)
 
         # create masks by hand
-        x_masks = [
-            torch.tensor([
-                [1,1,1],
-                [1,1,1],
-            ], dtype=torch.int64),
-            torch.tensor([
-                [1,1,1],
-                [1,1,0],
-            ], dtype=torch.int64)
+        masks = [
+            torch.tensor([[
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
+            ],[
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
+            ]]),
+            torch.tensor([[
+                [1, 0, 0, 0],
+                [1, 1, 0, 0],
+                [1, 1, 1, 0],
+            ],[
+                [1, 1, 0, 0],
+                [1, 1, 1, 1],
+                [1, 1, 1, 0],
+            ]]),
         ]
 
-        z_masks = [
-            torch.tensor([
-                [1,1,1,1],
-                [1,1,1,1],
-            ], dtype=torch.int64),
-            torch.tensor([
-                [1,1,0,0],
-                [1,1,1,0],
-            ], dtype=torch.int64)
-        ]
 
         for bias in [True, False]:
-            for x_mask in x_masks:
-                for z_mask in z_masks:
+            for mask in masks:
 
-                    # we will use this as expected output
-                    single_query_attention = SingleQueryAttention(
-                        d_x = self.config.d_x,
-                        d_z = self.config.d_z,
-                        d_attn = self.config.d_attn,
-                        d_out = self.config.d_mid,
-                        bias = bias,
-                    )
+                # we will use this as expected output
+                single_query_attention = SingleQueryAttention(
+                    d_x = self.config.d_x,
+                    d_z = self.config.d_z,
+                    d_attn = self.config.d_attn,
+                    d_out = self.config.d_mid,
+                    bias = bias,
+                )
 
-                    # compare actual output of this to expected output
-                    multi_head_attention = MultiHeadAttention(
-                        d_x = self.config.d_x,
-                        d_z = self.config.d_z,
-                        d_attn = self.config.d_attn,
-                        d_mid = self.config.d_mid,
-                        n_h = self.config.n_h,
-                        d_out = self.config.d_out,
-                        bias = bias,
-                    )
+                # compare actual output of this to expected output
+                multi_head_attention = MultiHeadAttention(
+                    d_x = self.config.d_x,
+                    d_z = self.config.d_z,
+                    d_attn = self.config.d_attn,
+                    d_mid = self.config.d_mid,
+                    n_h = self.config.n_h,
+                    d_out = self.config.d_out,
+                    bias = bias,
+                )
 
-                    params_and_buffers = {
-                        "w_q": w_q, "w_k": w_k, "w_v": w_v, "w_o": w_o,
-                        "b_q": b_q, "b_k": b_k, "b_v": b_v, "b_o": b_o,
-                    }
-                    actual_output = functional_call(
-                        multi_head_attention,
-                        params_and_buffers,
-                        (x, z, x_mask, z_mask),
-                    )
+                params_and_buffers = {
+                    "w_q": w_q, "w_k": w_k, "w_v": w_v, "w_o": w_o,
+                    "b_q": b_q, "b_k": b_k, "b_v": b_v, "b_o": b_o,
+                }
+                actual_output = functional_call(
+                    multi_head_attention,
+                    params_and_buffers,
+                    (x, z, mask),
+                )
 
-                    for batch in range(self.config.b):
-                        for head in range(self.config.n_h):
-                            for tok in range(self.config.l_x):
+                for batch in range(self.config.b):
+                    for head in range(self.config.n_h):
+                        for tok in range(self.config.l_x):
 
-                                x1 = x[batch, tok, :]
-                                zb = z[batch, :, :]
+                            x1 = x[batch, tok, :]
+                            zb = z[batch, :, :]
 
-                                params_and_buffers = {
-                                    "w_q": w_q[head, :, :],
-                                    "w_k": w_k[head, :, :],
-                                    "w_v": w_v[head, :, :],
-                                    "b_q": b_q[head, :],
-                                    "b_k": b_k[head, :],
-                                    "b_v": b_v[head, :],
-                                }
+                            params_and_buffers = {
+                                "w_q": w_q[head, :, :],
+                                "w_k": w_k[head, :, :],
+                                "w_v": w_v[head, :, :],
+                                "b_q": b_q[head, :],
+                                "b_k": b_k[head, :],
+                                "b_v": b_v[head, :],
+                            }
 
-                                expected_output = functional_call(
-                                    single_query_attention,
-                                    params_and_buffers,
-                                    (
-                                        x1,
-                                        zb,
-                                        x_mask[batch, tok],
-                                        z_mask[batch, :],
-                                    ),
-                                )
+                            expected_output = functional_call(
+                                single_query_attention,
+                                params_and_buffers,
+                                (
+                                    x1,
+                                    zb,
+                                    mask[batch, tok, :],
+                                ),
+                            )
 
+                            self.assertTrue(allclose(
+                                expected_output["k"],
+                                actual_output["k"][batch, head, :, :]))
+
+                            self.assertTrue(allclose(
+                                expected_output["v"],
+                                actual_output["v"][batch, head, :, :]))
+
+                            for check_key in ["q", "score", "attention"]:
+                                print(check_key)
                                 self.assertTrue(allclose(
-                                    expected_output["k"],
-                                    actual_output["k"][batch, head, :, :]))
+                                    expected_output[check_key],
+                                    actual_output[check_key][batch, head, tok, :]))
 
-                                self.assertTrue(allclose(
-                                    expected_output["v"],
-                                    actual_output["v"][batch, head, :, :]))
-
-                                for check_key in ["q", "score", "attention"]:
-                                    print(check_key)
-                                    self.assertTrue(allclose(
-                                        expected_output[check_key],
-                                        actual_output[check_key][batch, head, tok, :]))
-
-                                # note that the final output of single query
-                                # is equal to the specific head result
-                                self.assertTrue(allclose(
-                                    expected_output["vtilde"],
-                                    actual_output["yh"][batch, head, tok, :]))
+                            # note that the final output of single query
+                            # is equal to the specific head result
+                            self.assertTrue(allclose(
+                                expected_output["vtilde"],
+                                actual_output["yh"][batch, head, tok, :]))

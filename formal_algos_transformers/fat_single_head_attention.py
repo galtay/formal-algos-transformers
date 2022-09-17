@@ -9,6 +9,24 @@ import torch.nn as nn
 from torch import Tensor
 
 
+def get_pad_mask(x_mask, z_mask):
+    """Build 2-D padding mask from two 1-D padding masks.
+
+    Input:
+        x_mask (tensor) [b, l_x]: primary sequence attention mask (1=attend, 0=dont)
+        z_mask (tensor) [b, l_z]: context sequence attention mask (1=attend, 0=dont)
+
+    Output:
+        mask (tensor) [b, l_x, l_z]: attention mask (1=attend, 0=dont)
+
+    """
+
+    # combine and expand x_mask [b, l_x] and z_mask [b, l_z]
+    # [b, l_x, 1] @ [b, 1, l_z] = [b, l_x, l_z]
+    mask = x_mask[:, :, None] @ z_mask[:, None, :]
+    return mask
+
+
 class SingleHeadAttention(nn.Module):
 
     """Applies masked self or cross single-head attention.
@@ -24,17 +42,15 @@ class SingleHeadAttention(nn.Module):
     Input:
         x (tensor) [b, l_x, d_x]: token embeddings of primary sequence
         z (tensor) [b, l_z, d_z]: token embeddings of context sequence
-        x_mask (tensor) [b, l_x]: primary sequence attention mask (1=attend, 0=dont)
-        z_mask (tensor) [b, l_z]: context sequence attention mask (1=attend, 0=dont)
+        mask (tensor) [b, l_x, l_z]: attention mask (1=attend, 0=dont)
 
     Output:
         q (tensor) [b, l_x, d_attn]: query vectors for x
         k (tensor) [b, l_z, d_attn]: key vectors for z
         v (tensor) [b, l_z, d_out]: value vectors for z
+
         score (tensor) [b, l_x, l_z]: (q @ k^T) / sqrt(d_attn) for each batch
             where mask = 1 else minimum value for score tensor dtype
-        mask (tensor) [b, l_x, l_z]: mask[i,x,z] = 0 if x_mask[i,x] = 0 or
-            z_mask[i,z] = 0 else 1
         attention (tensor) [b, l_x, l_z]: attention weights
             explicitly set to 0 where mask = 0
         vtilde (tensor) [b, l_x, d_out]: contextualized representation of x
@@ -96,8 +112,7 @@ class SingleHeadAttention(nn.Module):
         self,
         x: Tensor,
         z: Tensor,
-        x_mask: Tensor,
-        z_mask: Tensor,
+        mask: Tensor,
     ):
 
         b_x, l_x, d_x = x.shape
@@ -108,8 +123,7 @@ class SingleHeadAttention(nn.Module):
 
         assert d_x == self.d_x
         assert d_z == self.d_z
-        assert x_mask.shape == (b, l_x)
-        assert z_mask.shape == (b, l_z)
+        assert mask.shape == (b, l_x, l_z)
 
         # this is batch matrix multiplication
         einsum_str = "b i k, k j -> b i j"
@@ -128,14 +142,11 @@ class SingleHeadAttention(nn.Module):
 
         # this is batch matrix multiplication with k transposed
         score = torch.einsum("b i k, b j k -> b i j", q, k) * self.scale
-        # combine and expand x_mask [b, l_x] and z_mask [b, l_z]
-        # [b, l_x, 1] @ [b, 1, l_z] = [b, l_x, l_z]
-        mask = x_mask[:, :, None] @ z_mask[:, None, :]
         score = score.masked_fill(~mask.to(torch.bool), torch.finfo(score.dtype).min)
         # multiplying by mask below is not required but ensures
         # attention is 0 where mask is 0
         attention = torch.softmax(score, dim=-1) * mask
-        assert mask.shape == score.shape == attention.shape == (b, l_x, l_z)
+        assert score.shape == attention.shape == (b, l_x, l_z)
 
         vtilde = attention @ v
         assert vtilde.shape == (b, l_x, self.d_out)
@@ -145,7 +156,6 @@ class SingleHeadAttention(nn.Module):
             "k": k,
             "v": v,
             "score": score,
-            "mask": mask,
             "attention": attention,
             "vtilde": vtilde,
         }
@@ -167,14 +177,16 @@ if __name__ == "__main__":
 
     x = torch.rand(b, l_x, d_x)
     z = torch.rand(b, l_z, d_z)
-    x_mask = torch.tensor([
-        [1, 1, 1],
-        [1, 1, 1],
-    ])
-    z_mask = torch.tensor([
+
+    mask = torch.tensor([[
         [1, 1, 1, 1],
         [1, 1, 1, 1],
-    ])
+        [1, 1, 1, 1],
+    ],[
+        [1, 1, 1, 1],
+        [1, 1, 1, 1],
+        [1, 1, 1, 1],
+    ]])
 
     sha = SingleHeadAttention(d_x, d_z, d_attn, d_out)
-    out = sha(x, z, x_mask, z_mask)
+    out = sha(x, z, mask)

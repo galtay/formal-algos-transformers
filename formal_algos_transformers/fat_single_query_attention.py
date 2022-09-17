@@ -24,14 +24,13 @@ class SingleQueryAttention(nn.Module):
     Input:
         x1 (tensor) [d_x]: single token embedding to be contextualized
         z (tensor) [l_z, d_z]: sequence of context token embeddings
-        x1_mask (tensor) []: torch.tensor(0) or torch.tensor(1)
-        z_mask (tensor) [l_z]: context attention mask
+        mask (tensor) [l_z]: attention mask
 
     Output:
         q (tensor) [d_attn]: query vector for x1
         k (tensor) [l_z, d_attn]: key vectors for z
         v (tensor) [l_z, d_out]: value vectors for z
-        mask (tensor): [l_z] mask[i] = 0 if x1_mask is 0 or z_mask[i] = 0 else 1
+
         score (tensor) [l_z]: score = (q @ k^T) / sqrt(d_attn)
             where mask = 1 else minimum value for score tensor dtype
         attention (tensor) [l_z]: attention weights
@@ -95,22 +94,19 @@ class SingleQueryAttention(nn.Module):
         self,
         x1: Tensor,
         z: Tensor,
-        x1_mask: Tensor,
-        z_mask: Tensor,
+        mask: Tensor,
     ):
 
         assert x1.dim() == 1
         assert z.dim() == 2
-        assert x1_mask.dim() == 0
-        assert z_mask.dim() == 1
+        assert mask.dim() == 1
 
         (d_x,) = x1.shape
         (l_z, d_z) = z.shape
 
         assert d_x == self.d_x
         assert d_z == self.d_z
-        assert x1_mask.shape == ()
-        assert z_mask.shape == (l_z,)
+        assert mask.shape == (l_z,)
 
         if self.bias:
             q = x1 @ self.w_q + self.b_q
@@ -126,7 +122,6 @@ class SingleQueryAttention(nn.Module):
         assert v.shape == (l_z, self.d_out)
 
         score = q @ k.T * self.scale
-        mask = x1_mask * z_mask
         score = score.masked_fill(~mask.to(torch.bool), torch.finfo(score.dtype).min)
         # multiplying by mask below is not required but ensures
         # attention is 0 where mask is 0
@@ -141,7 +136,6 @@ class SingleQueryAttention(nn.Module):
             "k": k,
             "v": v,
             "score": score,
-            "mask": mask,
             "attention": attention,
             "vtilde": vtilde,
         }
@@ -162,8 +156,7 @@ if __name__ == "__main__":
 
     x1 = torch.rand(d_x)
     z = torch.rand(l_z, d_z)
-    x1_mask = torch.tensor(0)
-    z_mask = torch.tensor([1, 1, 1, 0, 1, 1])
+    mask = torch.tensor([1, 1, 1, 0, 1, 1])
 
     sqa = SingleQueryAttention(d_x, d_z, d_attn, d_out)
-    out = sqa(x1, z, x1_mask, z_mask)
+    out = sqa(x1, z, mask)

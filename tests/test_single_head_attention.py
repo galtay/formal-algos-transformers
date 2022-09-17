@@ -38,83 +38,82 @@ class TestSingleHeadAttention(unittest.TestCase):
         z = torch.randn(self.config.b, self.config.l_z, self.config.d_z)
 
         # create masks by hand
-        x_masks = [
-            torch.tensor([
-                [1,1,1],
-                [1,1,1],
-            ], dtype=torch.int64),
-            torch.tensor([
-                [1,1,1],
-                [1,1,0],
-            ], dtype=torch.int64)
+        masks = [
+            torch.tensor([[
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
+            ],[
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
+            ]]),
+            torch.tensor([[
+                [1, 0, 0, 0],
+                [1, 1, 0, 0],
+                [1, 1, 1, 0],
+            ],[
+                [1, 1, 0, 0],
+                [1, 1, 1, 1],
+                [1, 1, 1, 0],
+            ]]),
         ]
 
-        z_masks = [
-            torch.tensor([
-                [1,1,1,1],
-                [1,1,1,1],
-            ], dtype=torch.int64),
-            torch.tensor([
-                [1,1,0,0],
-                [1,1,1,0],
-            ], dtype=torch.int64)
-        ]
 
         for bias in [True, False]:
-            for x_mask in x_masks:
-                for z_mask in z_masks:
+            for mask in masks:
 
-                    # we will use this as expected output
-                    single_query_attention = SingleQueryAttention(
-                        d_x = self.config.d_x,
-                        d_z = self.config.d_z,
-                        d_attn = self.config.d_attn,
-                        d_out = self.config.d_out,
-                        bias = bias,
-                    )
+                # we will use this as expected output
+                single_query_attention = SingleQueryAttention(
+                    d_x = self.config.d_x,
+                    d_z = self.config.d_z,
+                    d_attn = self.config.d_attn,
+                    d_out = self.config.d_out,
+                    bias = bias,
+                )
 
-                    # compare actual output of this to expected output
-                    attention = SingleHeadAttention(
-                        d_x = self.config.d_x,
-                        d_z = self.config.d_z,
-                        d_attn = self.config.d_attn,
-                        d_out = self.config.d_out,
-                        bias = bias,
-                    )
+                # compare actual output of this to expected output
+                single_head_attention = SingleHeadAttention(
+                    d_x = self.config.d_x,
+                    d_z = self.config.d_z,
+                    d_attn = self.config.d_attn,
+                    d_out = self.config.d_out,
+                    bias = bias,
+                )
 
-                    params_and_buffers = {
-                        "w_q": w_q, "w_k": w_k, "w_v": w_v,
-                        "b_q": b_q, "b_k": b_k, "b_v": b_v,
-                    }
-                    actual_output = functional_call(
-                        attention,
-                        params_and_buffers,
-                        (x, z, x_mask, z_mask),
-                    )
+                params_and_buffers = {
+                    "w_q": w_q, "w_k": w_k, "w_v": w_v,
+                    "b_q": b_q, "b_k": b_k, "b_v": b_v,
+                }
+                actual_output = functional_call(
+                    single_head_attention,
+                    params_and_buffers,
+                    (x, z, mask),
+                )
 
-                    for batch in range(self.config.b):
-                        for tok in range(self.config.l_x):
+                for batch in range(self.config.b):
+                    for tok in range(self.config.l_x):
 
-                            # get single query attention results
+                        # get single query attention results
 
-                            x1 = x[batch, tok, :]
-                            zb = z[batch, :, :]
-                            expected_output = functional_call(
-                                single_query_attention,
-                                params_and_buffers,
-                                (x1, zb, x_mask[batch, tok], z_mask[batch, :]),
-                            )
+                        x1 = x[batch, tok, :]
+                        zb = z[batch, :, :]
+                        expected_output = functional_call(
+                            single_query_attention,
+                            params_and_buffers,
+                            (x1, zb, mask[batch, tok, :]),
+                        )
+
+                        self.assertTrue(allclose(
+                            expected_output["k"],
+                            actual_output["k"][batch, :, :]))
+
+                        self.assertTrue(allclose(
+                            expected_output["v"],
+                            actual_output["v"][batch, :, :]))
+
+                        for check_key in ["q", "score", "attention", "vtilde"]:
 
                             self.assertTrue(allclose(
-                                expected_output["k"],
-                                actual_output["k"][batch, :, :]))
-
-                            self.assertTrue(allclose(
-                                expected_output["v"],
-                                actual_output["v"][batch, :, :]))
-
-                            for check_key in ["q", "score", "mask", "attention", "vtilde"]:
-
-                                self.assertTrue(allclose(
-                                    expected_output[check_key],
-                                    actual_output[check_key][batch, tok, :]))
+                                expected_output[check_key],
+                                actual_output[check_key][batch, tok, :]))

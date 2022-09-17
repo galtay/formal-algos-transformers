@@ -11,14 +11,13 @@ from formal_algos_transformers.fat_single_query_attention import SingleQueryAtte
 from .utils import allclose
 
 
-CHECK_KEYS = ["q", "k", "v", "score", "mask", "attention", "vtilde"]
+CHECK_KEYS = ["q", "k", "v", "score", "attention", "vtilde"]
 
 
 def single_query_attention_gold(
     x1: Tensor,
     z: List[Tensor],
-    x1_mask: Tensor,
-    z_mask: Tensor,
+    mask: Tensor,
     w_q: Tensor,
     w_k: Tensor,
     w_v: Tensor,
@@ -32,8 +31,7 @@ def single_query_attention_gold(
     Args:
         x1 (tensor) [d_x]: single token embedding to be contextualized
         z (List[tensor]) list of [d_z]: sequence of context token embeddings
-        x1_mask (tensor) []: torch.tensor(0) or torch.tensor(1)
-        z_mask (tensor) [l_z]: context attention mask
+        mask (tensor) [l_z]: attention mask
 
         w_q (tensor) [d_x, d_attn]: query weight tensor
         w_k (tensor) [d_z, d_attn]: key weight tensor
@@ -48,7 +46,6 @@ def single_query_attention_gold(
         q (tensor) [d_attn]: query vector for x1
         k (tensor) [l_z, d_attn]: key vectors for z
         v (tensor) [l_z, d_out]: value vectors for z
-        mask (tensor): [l_z] mask[i] = 0 if x1_mask is 0 or z_mask[i] = 0 else 1
         score (tensor) [l_z]: score = (q @ k^T) / sqrt(d_attn)
             score[i] = score[i] where mask[i] = 1
             else minimum value for score tensor dtype
@@ -68,11 +65,8 @@ def single_query_attention_gold(
     (d_z,) = z[0].shape
     assert all([z1.shape == (d_z,) for z1 in z])
 
-    assert x1_mask.dim() == 0
-    assert x1_mask.shape == ()
-
-    assert z_mask.dim() == 1
-    assert z_mask.shape == (l_z,)
+    assert mask.dim() == 1
+    assert mask.shape == (l_z,)
 
     assert w_q.dim() == w_k.dim() == w_v.dim() == 2
     assert w_q.shape[0] == d_x
@@ -101,7 +95,6 @@ def single_query_attention_gold(
     ])
     assert score.shape == (l_z,)
 
-    mask = x1_mask * z_mask
     bmask = mask.to(torch.bool)
     assert mask.shape == bmask.shape == (l_z,)
 
@@ -119,7 +112,6 @@ def single_query_attention_gold(
         "k": torch.stack(ks),
         "v": torch.stack(vs),
         "score": masked_score,
-        "mask": mask,
         "attention": attention,
         "vtilde": vtilde,
     }
@@ -157,64 +149,54 @@ class TestSingleQueryAttention(unittest.TestCase):
         x1 = torch.randn(self.config.d_x)
         z = [torch.randn(self.config.d_z) for _ in range(self.config.l_z)]
 
-        # single token x_mask can only be 0 or 1
-        x1_masks = [
-            torch.tensor(0, dtype=torch.int64),
-            torch.tensor(1, dtype=torch.int64),
-        ]
-
-        # create a few zs_masks
-        z_masks = [
+        # create a few masks
+        masks = [
             torch.tensor([1,1,1,1], dtype=torch.int64),
             torch.tensor([1,1,1,1], dtype=torch.int32),
             torch.tensor([1,1,1,0], dtype=torch.int32),
             torch.tensor([1,1,0,0], dtype=torch.int32),
             torch.tensor([1,0,1,0], dtype=torch.int32),
-            torch.tensor([0,1,0,0], dtype=torch.int32),
+            torch.tensor([0,1,1,1], dtype=torch.int32),
+            torch.tensor([0,0,0,0], dtype=torch.int32),
         ]
 
         for bias in [True, False]:
-            for x1_mask in x1_masks:
-                for z_mask in z_masks:
+            for mask in masks:
 
-                    single_query_attention = SingleQueryAttention(
-                        d_x = self.config.d_x,
-                        d_z = self.config.d_z,
-                        d_attn = self.config.d_attn,
-                        d_out = self.config.d_out,
-                        bias = bias,
-                    )
+                single_query_attention = SingleQueryAttention(
+                    d_x = self.config.d_x,
+                    d_z = self.config.d_z,
+                    d_attn = self.config.d_attn,
+                    d_out = self.config.d_out,
+                    bias = bias,
+                )
 
-                    # multiply biases by 0 if bias = False
-                    bias_mult = int(bias)
-                    expected_output = single_query_attention_gold(
-                        x1,
-                        z,
-                        x1_mask,
-                        z_mask,
-                        w_q,
-                        w_k,
-                        w_v,
-                        b_q * bias_mult,
-                        b_k * bias_mult,
-                        b_v * bias_mult,
-                    )
+                # multiply biases by 0 if bias = False
+                bias_mult = int(bias)
+                expected_output = single_query_attention_gold(
+                    x1,
+                    z,
+                    mask,
+                    w_q,
+                    w_k,
+                    w_v,
+                    b_q * bias_mult,
+                    b_k * bias_mult,
+                    b_v * bias_mult,
+                )
 
-                    # pass input thru single_query_attention with set weights and biases
-                    params_and_buffers = {
-                        "w_q": w_q, "w_k": w_k, "w_v": w_v,
-                        "b_q": b_q, "b_k": b_k, "b_v": b_v,
-                    }
+                # pass input thru single_query_attention with set weights and biases
+                params_and_buffers = {
+                    "w_q": w_q, "w_k": w_k, "w_v": w_v,
+                    "b_q": b_q, "b_k": b_k, "b_v": b_v,
+                }
 
-                    actual_output = functional_call(
-                        single_query_attention,
-                        params_and_buffers,
-                        (x1, torch.stack(z), x1_mask, z_mask),
-                    )
+                actual_output = functional_call(
+                    single_query_attention,
+                    params_and_buffers,
+                    (x1, torch.stack(z), mask),
+                )
 
-                    for key in CHECK_KEYS:
-#                        print(key)
-#                        print(expected_output[key])
-#                        print(actual_output[key])
-                        self.assertTrue(allclose(
-                            expected_output[key], actual_output[key]))
+                for key in CHECK_KEYS:
+                    self.assertTrue(allclose(
+                        expected_output[key], actual_output[key]))
