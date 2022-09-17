@@ -10,8 +10,5 @@ BUT
 * batch dimension is included
 * masking due to padding is included
 
-Inspiration
-
-* https://nlp.seas.harvard.edu/2018/04/03/attention.html
-* http://nlp.seas.harvard.edu/annotated-transformer/
-* https://github.com/labmlai/annotated_deep_learning_paper_implementations
+Check out the medium post for more
+https://gabriel-altay.medium.com/implementing-formal-algorithms-for-transformers-c36d8a5fc03d
