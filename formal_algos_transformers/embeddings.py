@@ -11,14 +11,21 @@ import torch.nn as nn
 
 class ContentEmbeddings(nn.Module):
 
-    def __init__(self, n_v: int, d_e: int, padding_idx: Optional[int] = None):
-        """Learned token content embeddings
+    """Learned token content embeddings
 
-        Args:
-            n_v (int): size of vocabulary
-            d_e (int): size of each token embedding
-            padding_idx (int): entries at padding_idx do not contribute to the gradient
-        """
+    Args:
+        n_v (int): size of vocabulary
+        d_e (int): size of each token embedding
+        padding_idx (int): entries at padding_idx do not contribute to the gradient
+
+    Input:
+        input_ids (tensor) [batch_size, seq_len]: vocabulary input ids
+
+    Output:
+        embeddings (tensor) [batch_size, seq_len, d_e]: token embeddings
+    """
+
+    def __init__(self, n_v: int, d_e: int, padding_idx: Optional[int] = None):
         super().__init__()
         self.n_v = n_v
         self.d_e = d_e
@@ -26,13 +33,7 @@ class ContentEmbeddings(nn.Module):
         self.embedding = nn.Embedding(n_v, d_e, padding_idx = padding_idx)
 
     def forward(self, input_ids: Tensor):
-        """
-        Args:
-            input_ids (tensor): [b, s] vocabulary input ids
-
-        Output:
-            embeddings (tensor): [b, s, d_e] token embeddings
-        """
+        assert input_ids.dim() == 2
         return self.embedding(input_ids)
 
     def extra_repr(self):
@@ -42,26 +43,27 @@ class ContentEmbeddings(nn.Module):
 
 class PositionEmbeddings(nn.Module):
 
-    def __init__(self, l_max: int, d_e: int):
-        """Learned token position embeddings
+    """Learned position embeddings
 
-        Args:
-            l_max (int): max sequence length
-            d_e (int): size of each token embedding
-        """
+    Args:
+        l_max (int): max sequence length
+        d_e (int): size of each token embedding
+
+    Input:
+        input_ids (tensor) [batch_size, seq_len]: vocabulary input ids
+
+    Output:
+        embeddings (tensor) [1, seq_len, d_e]: token embeddings
+
+    """
+
+    def __init__(self, l_max: int, d_e: int):
         super().__init__()
         self.l_max = l_max
         self.d_e = d_e
         self.embedding = torch.nn.Embedding(l_max, d_e)
 
     def forward(self, input_ids: Tensor):
-        """
-        Args:
-            input_ids (tensor): [b, s] vocabulary input ids
-
-        Output:
-            embeddings (tensor): [1, s, d_e] token embeddings
-        """
         _, ll = input_ids.shape
         return self.embedding(torch.arange(ll)[None,:])
 
@@ -71,13 +73,21 @@ class PositionEmbeddings(nn.Module):
 
 class PositionEncodings(nn.Module):
 
-    def __init__(self, l_max: int, d_e: int):
-        """Fixed position encodings
+    """Fixed position encodings
 
-        Args:
-            l_max (int): max sequence length
-            d_e (int): size of each token embedding
-        """
+    Args:
+        l_max (int): max sequence length
+        d_e (int): size of each token embedding
+
+    Input:
+        input_ids (tensor) [batch_size, seq_len]: vocabulary input ids
+
+    Output:
+        embeddings (tensor) [1, seq_len, d_e]: token embeddings
+
+    """
+
+    def __init__(self, l_max: int, d_e: int):
         super().__init__()
         self.l_max = l_max
         self.d_e = d_e
@@ -92,15 +102,29 @@ class PositionEncodings(nn.Module):
         self.register_buffer("pos_enc", encodings)
 
     def forward(self, input_ids: Tensor):
-        """
-        Args:
-            input_ids (tensor): [b, s] vocabulary input ids
-
-        Output:
-            embeddings (tensor): [1, s, d_e] token embeddings
-        """
         _, ll = input_ids.shape
-        return self.pos_enc[:, :ll]
+        return self.pos_enc[:, :ll, :]
 
     def extra_repr(self):
         return "l_max={}, d_e={}".format(self.l_max, self.d_e)
+
+
+if __name__ == "__main__":
+
+    n_v = 10
+    d_e = 4
+    l_max = 3
+
+    input_ids = torch.tensor([
+        [8,1,3],
+        [9,4,2],
+    ])
+
+    ce = ContentEmbeddings(n_v, d_e)
+    x_ce = ce(input_ids)
+
+    pemb = PositionEmbeddings(l_max, d_e)
+    x_pemb = pemb(input_ids)
+
+    penc = PositionEncodings(l_max, d_e)
+    x_penc = penc(input_ids)

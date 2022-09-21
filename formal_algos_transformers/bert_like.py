@@ -27,7 +27,7 @@ class Embeddings(nn.Module):
 
 class EncoderBlock(nn.Module):
 
-    def __init__(self, d_ff: int, mha: MultiHeadAttention):
+    def __init__(self, d_ff: int, mha: MultiHeadAttention, prenorm=True):
 
         """Apply an encoder only transformer block.
 
@@ -36,6 +36,7 @@ class EncoderBlock(nn.Module):
         Args:
             d_ff (int): size of ff layer
             mha (nn.Module): multi-head attention module
+            prenorm (bool): if True, layernorm before
         """
         super().__init__()
         self.d_ff = d_ff

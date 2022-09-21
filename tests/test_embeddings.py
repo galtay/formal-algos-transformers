@@ -34,6 +34,7 @@ class TestEmbeddings(unittest.TestCase):
                 self.assertTrue(all(
                     embeddings[b, t, :] == ce.embedding.weight[input_id]
                 ))
+        self.assertTrue(embeddings.requires_grad)
 
 
     def test_position_embeddings(self):
@@ -50,6 +51,7 @@ class TestEmbeddings(unittest.TestCase):
             self.assertTrue(all(
                 embeddings[0, t, :] == pe.embedding.weight[t]
             ))
+        self.assertTrue(embeddings.requires_grad)
 
 
     def test_position_encodings(self):
@@ -66,3 +68,4 @@ class TestEmbeddings(unittest.TestCase):
             self.assertTrue(all(
                 embeddings[0, t, :] == pe.pos_enc[0, t, :]
             ))
+        self.assertFalse(embeddings.requires_grad)
