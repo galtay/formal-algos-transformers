@@ -9,24 +9,6 @@ import torch.nn as nn
 from torch import Tensor
 
 
-def get_pad_mask(x_mask, z_mask):
-    """Build 2-D padding mask from two 1-D padding masks.
-
-    Input:
-        x_mask (tensor) [b, l_x]: primary sequence attention mask (1=attend, 0=dont)
-        z_mask (tensor) [b, l_z]: context sequence attention mask (1=attend, 0=dont)
-
-    Output:
-        mask (tensor) [b, l_x, l_z]: attention mask (1=attend, 0=dont)
-
-    """
-
-    # combine and expand x_mask [b, l_x] and z_mask [b, l_z]
-    # [b, l_x, 1] @ [b, 1, l_z] = [b, l_x, l_z]
-    mask = x_mask[:, :, None] @ z_mask[:, None, :]
-    return mask
-
-
 class SingleHeadAttention(nn.Module):
 
     """Applies masked self or cross single-head attention.
