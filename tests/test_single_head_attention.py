@@ -79,7 +79,7 @@ class TestSingleHeadAttention(unittest.TestCase):
                     d_attn = self.config.d_attn,
                     d_out = self.config.d_out,
                     bias = bias,
-                )
+                ).eval()
 
                 params_and_buffers = {
                     "w_q": w_q, "w_k": w_k, "w_v": w_v,

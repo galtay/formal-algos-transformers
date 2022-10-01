@@ -23,6 +23,7 @@ class MultiHeadAttention(nn.Module):
         d_out (int): size of each embedding in output sequence
         bias (bool): if true, use bias terms in q,k,v,o transforms
         do_init (bool): can set to False to leave tensors unintialized
+        dropout_proba (float): dropout probability
 
     Input:
         x (tensor) [b, l_x, d_x]: token embeddings of primary sequence
@@ -66,6 +67,7 @@ class MultiHeadAttention(nn.Module):
         d_out: int,
         bias: bool = True,
         do_init: bool = True,
+        dropout_proba: float = 0.1,
     ):
 
         super().__init__()
@@ -77,12 +79,14 @@ class MultiHeadAttention(nn.Module):
         self.d_out = d_out
         self.bias = bias
         self.do_init = do_init
+        self.dropout_proba = dropout_proba
         self.scale = 1 / math.sqrt(d_attn)
 
         self.w_q = nn.Parameter(torch.empty(n_h, d_x, d_attn))
         self.w_k = nn.Parameter(torch.empty(n_h, d_z, d_attn))
         self.w_v = nn.Parameter(torch.empty(n_h, d_z, d_mid))
         self.w_o = nn.Parameter(torch.empty(n_h * d_mid, d_out))
+        self.drop = nn.Dropout(dropout_proba)
 
         if bias:
             self.b_q = nn.Parameter(torch.empty(n_h, d_attn))
@@ -151,6 +155,9 @@ class MultiHeadAttention(nn.Module):
         # attention is 0 where mask is 0
         attention = torch.softmax(score, dim=-1) * emask
         assert attention.shape == (b, self.n_h, l_x, l_z)
+
+        # apply dropout to attention tensor
+        attention = self.drop(attention)
 
         # yh [b, h, l_x, d_mid]
         yh = attention @ v

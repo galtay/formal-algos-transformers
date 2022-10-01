@@ -85,7 +85,7 @@ class TestMultiHeadAttention(unittest.TestCase):
                     n_h = self.config.n_h,
                     d_out = self.config.d_out,
                     bias = bias,
-                )
+                ).eval()
 
                 params_and_buffers = {
                     "w_q": w_q, "w_k": w_k, "w_v": w_v, "w_o": w_o,
@@ -132,7 +132,6 @@ class TestMultiHeadAttention(unittest.TestCase):
                                 actual_output["v"][batch, head, :, :]))
 
                             for check_key in ["q", "score", "attention"]:
-                                print(check_key)
                                 self.assertTrue(allclose(
                                     expected_output[check_key],
                                     actual_output[check_key][batch, head, tok, :]))

@@ -20,6 +20,7 @@ class SingleHeadAttention(nn.Module):
         d_out (int): size of contextualized token embedding
         bias (bool): if true, use bias terms for q,k,v
         do_init (bool): can set to False to leave tensors unintialized
+        dropout_proba (float): dropout probability
 
     Input:
         x (tensor) [b, l_x, d_x]: token embeddings of primary sequence
@@ -56,6 +57,7 @@ class SingleHeadAttention(nn.Module):
         d_out: int,
         bias: bool = True,
         do_init: bool = True,
+        dropout_proba: float = 0.1,
     ):
 
         super().__init__()
@@ -65,11 +67,13 @@ class SingleHeadAttention(nn.Module):
         self.d_attn = d_attn
         self.bias = bias
         self.do_init = do_init
+        self.dropout_proba = dropout_proba
         self.scale = 1 / math.sqrt(d_attn)
 
         self.w_q = nn.Parameter(torch.empty(d_x, d_attn))
         self.w_k = nn.Parameter(torch.empty(d_z, d_attn))
         self.w_v = nn.Parameter(torch.empty(d_z, d_out))
+        self.drop = nn.Dropout(dropout_proba)
 
         if bias:
             self.b_q = nn.Parameter(torch.empty(d_attn))
@@ -129,6 +133,9 @@ class SingleHeadAttention(nn.Module):
         # attention is 0 where mask is 0
         attention = torch.softmax(score, dim=-1) * mask
         assert score.shape == attention.shape == (b, l_x, l_z)
+
+        # apply dropout to attention tensor
+        attention = self.drop(attention)
 
         vtilde = attention @ v
         assert vtilde.shape == (b, l_x, self.d_out)
