@@ -209,7 +209,9 @@ class EncoderHeadless(nn.Module):
     """
 
     def __init__(
-        self, embeddings: Embeddings, encoder_stack: EncoderStack,
+        self,
+        embeddings: Embeddings,
+        encoder_stack: EncoderStack,
     ):
         super().__init__()
         self.embeddings = embeddings
@@ -258,7 +260,9 @@ class EncoderMlmHead(nn.Module):
 
 class EncoderForMlm(nn.Module):
     def __init__(
-        self, encoder_headless: EncoderHeadless, mlm_head: EncoderMlmHead,
+        self,
+        encoder_headless: EncoderHeadless,
+        mlm_head: EncoderMlmHead,
     ):
         super().__init__()
         self.encoder_headless = encoder_headless
@@ -271,34 +275,27 @@ class EncoderForMlm(nn.Module):
         return x
 
 
-def make_bert_base_encoder():
+def make_bert_like_encoder(
+    n_v: int,
+    l_max: int,
+    embd_size: int = 768,
+    embd_do_layer_norm: bool = True,
+    n_layers: int = 12,
+    n_h: int = 12,
+    d_attn: Optional[int] = None,
+    d_mid: Optional[int] = None,
+    d_ff: Optional[int] = None,
+    prenorm: bool = False,
+    bias: bool = True,
+    dropout_proba: float = 0.1,
+):
 
-    embd_size = 768
+    # embeddings
+    # =========================================================
     d_x = embd_size
     d_z = embd_size
     d_out = embd_size
-
-    embd_do_layer_norm = True
-    embd_dropout_proba = 0.1
-
-    mha_attn_dropout_proba = 0.1
-    ff_internal_dropout_proba = 0.1
-
-    mha_sub_dropout_proba = 0.1
-    ff_sub_dropout_proba = 0.1
-
-    prenorm = False
-
-    n_h = 12
-    n_layers = 12
-
-    d_attn = embd_size // n_h
-    d_mid = embd_size // n_h
-    bias = True
-    d_ff = 3_072
-
-    n_v = 30_522
-    l_max = 512
+    embd_dropout_proba = dropout_proba
 
     content_embeddings = ContentEmbeddings(n_v, embd_size)
     position_encodings = PositionEncodings(l_max, embd_size)
@@ -308,6 +305,23 @@ def make_bert_base_encoder():
         do_layer_norm=embd_do_layer_norm,
         dropout_proba=embd_dropout_proba,
     )
+
+    # encoder
+    # =========================================================
+    mha_attn_dropout_proba = dropout_proba
+    ff_internal_dropout_proba = dropout_proba
+
+    mha_sub_dropout_proba = dropout_proba
+    ff_sub_dropout_proba = dropout_proba
+
+    if d_attn is None:
+        d_attn = embd_size // n_h
+
+    if d_mid is None:
+        d_mid = embd_size // n_h
+
+    if d_ff is None:
+        d_ff = 4 * embd_size
 
     encoder_blocks = nn.ModuleList(
         [
@@ -343,8 +357,18 @@ def make_bert_base_encoder():
 
 if __name__ == "__main__":
 
-    encoder_for_mlm = make_bert_base_encoder()
-    input_ids = torch.tensor([[4, 900, 72, 0, 0], [9287, 12, 726, 23107, 82],])
-    mask_1d = torch.tensor([[1, 1, 1, 0, 0], [1, 1, 1, 1, 1],])
+    encoder_for_mlm = make_bert_like_encoder(30_000, 512)
+    input_ids = torch.tensor(
+        [
+            [4, 900, 72, 0, 0],
+            [9287, 12, 726, 23107, 82],
+        ]
+    )
+    mask_1d = torch.tensor(
+        [
+            [1, 1, 1, 0, 0],
+            [1, 1, 1, 1, 1],
+        ]
+    )
     mask = get_pad_mask(mask_1d, mask_1d)
     mlm_logits = encoder_for_mlm(input_ids, mask)
